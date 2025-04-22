@@ -1,0 +1,9 @@
+# 编译生成的文件
+build
+
+# Qt相关文件
+*.pro.user
+
+fix_mutexes.ps1
+
+CMakeLists.txt.user
