@@ -10,6 +10,7 @@
 
 #include "message.h"
 #include "topic.h"
+#include "messageframehandler.h"
 
 /**
  * @brief Subscriber类，用于订阅和接收消息
@@ -174,11 +175,7 @@ private:
      */
     bool sendMessage(const Message& message);
 
-    /**
-     * @brief 处理收到的消息
-     * @param data 消息数据
-     */
-    void processReceivedData(const QByteArray& data);
+    // processReceivedData 方法已经被 MessageFrameHandler 替代
 
 private:
     QTcpSocket* m_tcpSocket;                ///< TCP套接字
@@ -192,6 +189,7 @@ private:
     int m_reconnectInterval;                ///< 重连间隔
     QTimer* m_reconnectTimer;               ///< 重连定时器
     bool m_registered;                      ///< 是否已注册为订阅者
+    MessageFrameHandler* m_frameHandler;     ///< 消息帧处理器
 };
 
 #endif // SUBSCRIBER_H

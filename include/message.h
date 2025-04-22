@@ -71,10 +71,18 @@ public:
 
     /**
      * @brief 从字节数组反序列化消息
-     * @param data 序列化的字节数组
+     * @param data 序列化的字节数组（不包含长度前缀）
      * @return 是否反序列化成功
      */
     bool deserialize(const QByteArray& data);
+
+    /**
+     * @brief 从带有长度前缀的完整消息中提取消息内容
+     * @param frameData 带有长度前缀的完整消息
+     * @param bytesRead 输出参数，表示从输入数据中读取的字节数
+     * @return 如果成功，返回消息内容；如果失败，返回空字节数组
+     */
+    static QByteArray extractMessageContent(const QByteArray& frameData, int& bytesRead);
 
 private:
     QString m_id;           ///< 消息ID

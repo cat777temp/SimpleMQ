@@ -15,6 +15,7 @@
 
 #include "message.h"
 #include "topic.h"
+#include "messageframehandler.h"
 
 /**
  * @brief 客户端连接信息
@@ -27,6 +28,7 @@ struct ClientInfo {
     bool isPublisher;           ///< 是否为发布者
     bool isSubscriber;          ///< 是否为订阅者
     QDateTime lastActiveTime;   ///< 最后活动时间
+    MessageFrameHandler* frameHandler; ///< 消息帧处理器
 };
 
 /**

@@ -27,6 +27,7 @@ set(SOURCES
     src/topic.cpp
     src/message.cpp
     src/logger.cpp
+    src/messageframehandler.cpp
 )
 
 # 头文件
@@ -37,6 +38,7 @@ set(HEADERS
     include/topic.h
     include/message.h
     include/logger.h
+    include/messageframehandler.h
 )
 
 # 创建库

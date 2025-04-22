@@ -11,9 +11,31 @@ Subscriber::Subscriber(QObject* parent)
     , m_reconnectInterval(5000)
     , m_reconnectTimer(new QTimer(this))
     , m_registered(false)
+    , m_frameHandler(new MessageFrameHandler(this))
 {
     // 连接重连定时器信号
     connect(m_reconnectTimer, &QTimer::timeout, this, &Subscriber::tryReconnect);
+
+    // 连接消息帧处理器的信号
+    connect(m_frameHandler, &MessageFrameHandler::messageReceived,
+            [this](const Message& message) {
+                // 如果是系统消息，不发送给用户
+                if (message.topic().startsWith("$SYS/")) {
+                    return;
+                }
+
+                // 检查是否订阅了该主题
+                if (m_subscribedTopics.contains(message.topic())) {
+                    Logger::instance()->debug(QString("Received message on topic: %1").arg(message.topic()));
+                    emit messageReceived(message);
+                }
+            });
+
+    connect(m_frameHandler, &MessageFrameHandler::error,
+            [this](const QString& errorMessage) {
+                Logger::instance()->warning(QString("Frame handler error: %1").arg(errorMessage));
+                emit error(errorMessage);
+            });
 }
 
 Subscriber::~Subscriber()
@@ -119,6 +141,11 @@ void Subscriber::disconnectFromBroker()
         m_localSocket->close();
         m_localSocket->deleteLater();
         m_localSocket = nullptr;
+    }
+
+    // 清除消息帧处理器的缓冲区
+    if (m_frameHandler) {
+        m_frameHandler->clearBuffer();
     }
 
     m_registered = false;
@@ -234,8 +261,10 @@ void Subscriber::handleTcpReadyRead()
     // 读取数据
     QByteArray data = m_tcpSocket->readAll();
 
-    // 处理收到的数据
-    processReceivedData(data);
+    // 使用消息帧处理器处理数据
+    // 当收到完整消息时，帧处理器会发出 messageReceived 信号
+    // 该信号已在构造函数中连接到处理函数
+    m_frameHandler->processIncomingData(data);
 }
 
 void Subscriber::handleLocalReadyRead()
@@ -243,8 +272,10 @@ void Subscriber::handleLocalReadyRead()
     // 读取数据
     QByteArray data = m_localSocket->readAll();
 
-    // 处理收到的数据
-    processReceivedData(data);
+    // 使用消息帧处理器处理数据
+    // 当收到完整消息时，帧处理器会发出 messageReceived 信号
+    // 该信号已在构造函数中连接到处理函数
+    m_frameHandler->processIncomingData(data);
 }
 
 void Subscriber::handleError(QAbstractSocket::SocketError socketError)
@@ -327,23 +358,5 @@ bool Subscriber::sendMessage(const Message& message)
     return true;
 }
 
-void Subscriber::processReceivedData(const QByteArray& data)
-{
-    // 反序列化消息
-    Message message;
-    if (!message.deserialize(data)) {
-        Logger::instance()->warning("Failed to deserialize received message");
-        return;
-    }
-
-    // 如果是系统消息，不发送给用户
-    if (message.topic().startsWith("$SYS/")) {
-        return;
-    }
-
-    // 检查是否订阅了该主题
-    if (m_subscribedTopics.contains(message.topic())) {
-        Logger::instance()->debug(QString("Received message on topic: %1").arg(message.topic()));
-        emit messageReceived(message);
-    }
-}
+// processReceivedData 方法已经被 MessageFrameHandler 替代
+// 相关逻辑已经移到构造函数中的 lambda 函数中

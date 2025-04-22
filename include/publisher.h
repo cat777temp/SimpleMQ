@@ -10,6 +10,7 @@
 
 #include "message.h"
 #include "topic.h"
+#include "messageframehandler.h"
 
 /**
  * @brief Publisher类，用于发布消息
@@ -160,6 +161,7 @@ private:
     QQueue<Message> m_pendingMessages;      ///< 待发送消息队列
     QMutex* m_pendingMessagesMutex;          ///< 待发送消息互斥锁
     bool m_registered;                      ///< 是否已注册为发布者
+    MessageFrameHandler* m_frameHandler;     ///< 消息帧处理器
 };
 
 #endif // PUBLISHER_H

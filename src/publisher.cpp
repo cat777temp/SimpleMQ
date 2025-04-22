@@ -12,9 +12,17 @@ Publisher::Publisher(QObject* parent)
     , m_reconnectTimer(new QTimer(this))
     , m_pendingMessagesMutex(new QMutex())
     , m_registered(false)
+    , m_frameHandler(new MessageFrameHandler(this))
 {
     // 连接重连定时器信号
     connect(m_reconnectTimer, &QTimer::timeout, this, &Publisher::tryReconnect);
+
+    // 连接消息帧处理器的信号
+    connect(m_frameHandler, &MessageFrameHandler::error,
+            [this](const QString& errorMessage) {
+                Logger::instance()->warning(QString("Frame handler error: %1").arg(errorMessage));
+                emit error(errorMessage);
+            });
 }
 
 Publisher::~Publisher()
@@ -119,6 +127,11 @@ void Publisher::disconnectFromBroker()
         m_localSocket->close();
         m_localSocket->deleteLater();
         m_localSocket = nullptr;
+    }
+
+    // 清除消息帧处理器的缓冲区
+    if (m_frameHandler) {
+        m_frameHandler->clearBuffer();
     }
 
     m_registered = false;

@@ -209,19 +209,21 @@ void Broker::handleTcpReadyRead()
         return;
     }
 
-    // 查找客户端ID
+    // 查找客户端ID和帧处理器
     QString clientId;
+    MessageFrameHandler* frameHandler = nullptr;
     {
         QMutexLocker locker(m_clientsMutex);
         for (auto it = m_clients.begin(); it != m_clients.end(); ++it) {
             if (it.value().tcpSocket == socket) {
                 clientId = it.key();
+                frameHandler = it.value().frameHandler;
                 break;
             }
         }
     }
 
-    if (clientId.isEmpty()) {
+    if (clientId.isEmpty() || !frameHandler) {
         Logger::instance()->warning("Received data from unknown TCP client");
         return;
     }
@@ -236,15 +238,10 @@ void Broker::handleTcpReadyRead()
     while (socket->bytesAvailable() > 0) {
         QByteArray data = socket->readAll();
 
-        // 反序列化消息
-        Message message;
-        if (!message.deserialize(data)) {
-            Logger::instance()->warning(QString("Failed to deserialize message from client: %1").arg(clientId));
-            continue;
-        }
-
-        // 处理消息
-        processMessage(clientId, message);
+        // 使用消息帧处理器处理数据
+        // 当收到完整消息时，帧处理器会发出 messageReceived 信号
+        // 该信号已在 registerClient 方法中连接到 processMessage 方法
+        frameHandler->processIncomingData(data);
     }
 }
 
@@ -255,19 +252,21 @@ void Broker::handleLocalReadyRead()
         return;
     }
 
-    // 查找客户端ID
+    // 查找客户端ID和帧处理器
     QString clientId;
+    MessageFrameHandler* frameHandler = nullptr;
     {
         QMutexLocker locker(m_clientsMutex);
         for (auto it = m_clients.begin(); it != m_clients.end(); ++it) {
             if (it.value().localSocket == socket) {
                 clientId = it.key();
+                frameHandler = it.value().frameHandler;
                 break;
             }
         }
     }
 
-    if (clientId.isEmpty()) {
+    if (clientId.isEmpty() || !frameHandler) {
         Logger::instance()->warning("Received data from unknown local client");
         return;
     }
@@ -282,15 +281,10 @@ void Broker::handleLocalReadyRead()
     while (socket->bytesAvailable() > 0) {
         QByteArray data = socket->readAll();
 
-        // 反序列化消息
-        Message message;
-        if (!message.deserialize(data)) {
-            Logger::instance()->warning(QString("Failed to deserialize message from client: %1").arg(clientId));
-            continue;
-        }
-
-        // 处理消息
-        processMessage(clientId, message);
+        // 使用消息帧处理器处理数据
+        // 当收到完整消息时，帧处理器会发出 messageReceived 信号
+        // 该信号已在 registerClient 方法中连接到 processMessage 方法
+        frameHandler->processIncomingData(data);
     }
 }
 
@@ -606,6 +600,22 @@ QString Broker::registerClient(QObject* socket, bool isLocal)
     clientInfo.isSubscriber = false;
     clientInfo.lastActiveTime = QDateTime::currentDateTime();
 
+    // 创建消息帧处理器
+    clientInfo.frameHandler = new MessageFrameHandler(this);
+
+    // 连接消息帧处理器的信号
+    connect(clientInfo.frameHandler, &MessageFrameHandler::messageReceived,
+            [this, clientId](const Message& message) {
+                // 处理收到的消息
+                processMessage(clientId, message);
+            });
+
+    connect(clientInfo.frameHandler, &MessageFrameHandler::error,
+            [this, clientId](const QString& errorMessage) {
+                // 记录错误
+                Logger::instance()->warning(QString("Client %1: %2").arg(clientId).arg(errorMessage));
+            });
+
     // 添加客户端信息
     QMutexLocker locker(m_clientsMutex);
     m_clients[clientId] = clientInfo;
@@ -638,6 +648,12 @@ void Broker::unregisterClient(const QString& clientId)
     if (clientInfo.localSocket) {
         clientInfo.localSocket->disconnect();
         clientInfo.localSocket->deleteLater();
+    }
+
+    // 释放消息帧处理器
+    if (clientInfo.frameHandler) {
+        clientInfo.frameHandler->disconnect();
+        clientInfo.frameHandler->deleteLater();
     }
 
     // 移除客户端信息
